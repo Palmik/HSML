@@ -1,0 +1,209 @@
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RecordWildCards #-}
+
+module Template.HSML.Internal.TH
+( hsmlWith
+, hsml
+, m
+
+, hsmlStringWith
+, hsmlFileWith
+
+, shsmlStringWith
+, shsmlString
+, shsmlFileWith
+, shsmlFile
+) where
+
+--------------------------------------------------------------------------------
+import qualified Language.Haskell.TH        as TH
+import qualified Language.Haskell.TH.Quote  as TH
+import qualified Language.Haskell.TH.Syntax as TH
+-- import qualified Language.Haskell.Exts.Syntax           as HE
+import qualified Language.Haskell.Meta.Syntax.Translate as HE
+--------------------------------------------------------------------------------
+import qualified Text.Blaze          as B
+import qualified Text.Blaze.Internal as B
+--------------------------------------------------------------------------------
+-- import           Control.Applicative
+import           Control.Monad
+--------------------------------------------------------------------------------
+-- import           Data.Char
+import           Data.String
+import           Data.Monoid
+-- import qualified Data.Generics as G
+--------------------------------------------------------------------------------
+import qualified Template.HSML.Internal.Types  as I
+import qualified Template.HSML.Internal.Parser as I
+--------------------------------------------------------------------------------
+
+hsmlWith :: I.Options -> TH.QuasiQuoter
+hsmlWith opts = TH.QuasiQuoter
+    { TH.quoteExp  = shsmlStringWith opts  
+    , TH.quoteDec  =  hsmlStringWith opts
+    , TH.quotePat  = const $ fail "You can not use the .HSML QuasiQuoter as a pattern."
+    , TH.quoteType = const $ fail "You can not use the .HSML QuasiQuoter as a type."
+    }
+{-# INLINE hsmlWith #-}
+
+hsml :: TH.QuasiQuoter
+hsml = TH.QuasiQuoter 
+    { TH.quoteExp  = shsmlString  
+    , TH.quoteDec  = const $ fail "You can not use the .HSML QuasiQuoter as a declaration."
+    , TH.quotePat  = const $ fail "You can not use the .HSML QuasiQuoter as a pattern."
+    , TH.quoteType = const $ fail "You can not use the .HSML QuasiQuoter as a type."
+    }
+{-# INLINE hsml #-}
+
+m :: TH.QuasiQuoter
+m = hsml
+{-# INLINE m #-}
+
+--------------------------------------------------------------------------------
+-- | .HSML
+
+hsmlFileWith :: I.Options -> FilePath -> TH.Q [TH.Dec]
+hsmlFileWith opts path = TH.runIO (readFile path) >>= hsmlStringWith opts
+{-# INLINE hsmlFileWith #-}
+
+hsmlFile :: String -> FilePath -> TH.Q [TH.Dec]
+hsmlFile = hsmlFileWith . I.defaultHSML
+{-# INLINE hsmlFile #-}
+
+hsmlStringWith :: I.Options -> String -> TH.Q [TH.Dec]
+hsmlStringWith opts str = 
+    case I.hsmlTemplate str of
+        Right tpl -> makeDec opts tpl
+        Left  err -> fail err
+{-# INLINE hsmlStringWith #-}
+
+hsmlString :: String -> String -> TH.Q [TH.Dec]
+hsmlString = hsmlStringWith . I.defaultHSML
+{-# INLINE hsmlString #-}
+
+--------------------------------------------------------------------------------
+-- | Simple .HSML (without arguments)
+
+shsmlFileWith :: I.Options -> FilePath -> TH.ExpQ
+shsmlFileWith opts path = TH.runIO (readFile path) >>= shsmlStringWith opts
+{-# INLINE shsmlFileWith #-}
+
+shsmlFile :: FilePath -> TH.ExpQ
+shsmlFile = shsmlFileWith I.defaultSHSML
+{-# INLINE shsmlFile #-}
+
+shsmlStringWith :: I.Options -> String -> TH.ExpQ
+shsmlStringWith opts str = 
+    case I.shsmlTemplate str of
+        Right I.Template{..} -> makeExp opts templateDecs templateSections 
+        Left  err            -> fail err
+{-# INLINE shsmlStringWith #-}
+
+shsmlString :: String -> TH.ExpQ
+shsmlString = shsmlStringWith I.defaultSHSML
+{-# INLINE shsmlString #-}
+
+--------------------------------------------------------------------------------
+
+-- | This function take options @ template and generates the record type and
+-- instance of .HSMLTemplate for that record type.
+makeDec :: I.Options -> I.Template -> TH.Q [TH.Dec]
+makeDec opts@(I.Options _ tname fname) (I.Template args decs sections) = do
+    (vars, fields) <- makeVarsAndFields
+    tdata <- makeData     vars fields
+    tinst <- makeInstance vars
+    return [tdata, tinst] 
+    where
+      dataName :: TH.Name
+      dataName = HE.toName tname
+
+      -- | This function generates the type variable names and fields.
+      makeVarsAndFields :: TH.Q ([TH.Name], [TH.VarStrictType])
+      makeVarsAndFields = foldM go ([], []) args
+          where
+            go (vs, fs) (I.Arg an (Just at)) =
+              return (vs, (HE.toName $ fname an, TH.NotStrict, HE.toType at) : fs)
+            go (vs, fs) (I.Arg an Nothing) = do
+              v <- TH.newName "a"
+              return (v : vs, (HE.toName $ fname an, TH.NotStrict, TH.VarT v) : fs)
+
+      -- | This function generates the instance in .HSMLTemplate.
+      makeInstance :: [TH.Name] -> TH.DecQ 
+      makeInstance vars =
+          -- instance .HSMLTemplate (<dataName> <vars>) where
+          --     renderTemplate <tpl>@(<dataName>{ <binds> }) = 
+          --        <expression generated by makeExp>
+          TH.instanceD
+              (return [])
+              (TH.conT ''I.HSMLTemplate `TH.appT` contyp)
+              [TH.funD 'I.renderTemplate [clause]]
+          where
+            -- This is the data type applied to all the type variables.
+            contyp = foldl (\acc n -> acc `TH.appT` TH.varT n) (TH.conT dataName) vars
+            
+            -- This is the clause for renderTemplate. 
+            clause = do 
+              arg <- TH.newName "tpl"
+              TH.clause [TH.asP arg $ TH.recP dataName binds]
+                        (TH.normalB $ makeExp opts decs sections) []
+            -- This is the { <fieldName1> = <argName1>, ... } pattern.
+            binds = map (\(I.Arg n _) -> return (HE.toName $ fname n, TH.VarP $ HE.toName n)) args
+      
+      -- | This function generates the record type.
+      makeData :: [TH.Name] -> [TH.VarStrictType] -> TH.DecQ
+      makeData vars fields = return $
+          -- data <dataName> <vars> = <dataName> { <fields> }
+          TH.DataD [] dataName (map TH.PlainTV vars) [TH.RecC dataName fields] []
+
+makeExp :: I.Options -> [I.Dec] -> [I.Section] -> TH.ExpQ
+makeExp opts decs sections =
+    TH.letE (declarationsToDecs decs)
+            (sectionsToExp opts sections)
+
+--------------------------------------------------------------------------------
+
+declarationsToDecs :: [I.Dec] -> [TH.DecQ]
+declarationsToDecs = map declarationToDec
+    where declarationToDec (I.Dec dec) = return $ HE.toDec dec
+
+
+sectionsToExp :: I.Options -> [I.Section] -> TH.ExpQ
+sectionsToExp opts sections = 
+    [e| mconcat $(TH.listE $ map (sectionToExp opts) sections) :: B.Markup |]
+
+sectionToExp :: I.Options -> I.Section -> TH.ExpQ
+sectionToExp opts@I.Options{..} section =
+  case section of
+    (I.ElementNode name atts sections) ->
+      [e| applyAttributes $(TH.listE $ map attributeToExp atts) $
+            B.Parent (fromString name)
+                     (fromString $ "<" <> name)
+                     (fromString $ "</" <> name <> ">")
+                     $(sectionsToExp opts sections) |]
+    (I.ElementLeaf name atts) -> 
+      [e| applyAttributes $(TH.listE $ map attributeToExp atts) $
+            B.Leaf (fromString name)
+                   (fromString $ "<" <> name)
+                   (fromString ">") |]
+    (I.Text    str) -> [e| B.string str |]
+    (I.TextRaw str) -> [e| B.preEscapedString str |]
+    (I.Expression (I.Exp e)) ->
+      if optSectionsToMarkup
+         then [e| B.toMarkup $(return $ HE.toExp e) |]
+         else return $ HE.toExp e
+
+applyAttributes :: [B.Attribute] -> B.MarkupM a -> B.MarkupM a
+applyAttributes attributes markup = foldl (B.!) markup attributes
+
+attributeToExp :: I.Attribute -> TH.ExpQ
+attributeToExp (I.Attribute aname avalue) =
+    [e| B.attribute (fromString $(attributeNameToExp aname))
+                    (fromString (" " <> $(attributeNameToExp aname) <> "=\""))
+                    (fromString $(attributeValueToExp avalue)) |]
+    where
+      attributeNameToExp (I.AttributeNameExp  (I.Exp e)) = return $ HE.toExp e
+      attributeNameToExp (I.AttributeNameText str) = [e| str |]
+
+      attributeValueToExp (I.AttributeValueExp  (I.Exp e)) = return $ HE.toExp e
+      attributeValueToExp (I.AttributeValueText str) = [e| str |]     
+
