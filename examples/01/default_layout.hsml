@@ -2,21 +2,21 @@
 {a| sectionMiddle :: B.Markup |}
 {a| sectionFooter :: B.Markup |}
 
-{e| B.docType |}
+{h| B.docType |}
 
 <html lang="en">
   <head>
     <meta charset="utf-8"/>
-    <title>{e|title|}</title>
+    <title>{h|title|}</title>
   </head>
 
   <body>
     <div class="section middle">
-      {e|sectionMiddle|}
+      {h|sectionMiddle|}
     </div>
 
     <footer>
-      {e|sectionFooter|}
+      {h|sectionFooter|}
     </footer>
   </body>
 </html>

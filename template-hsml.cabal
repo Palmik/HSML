@@ -20,17 +20,33 @@ build-type:          Simple
 cabal-version:       >=1.8
 stability:           Experimental
 
+flag testing
+  description: Are we building for testing?
+  default: True 
+
 library
   hs-source-dirs:      src
+
+  if flag(testing)
+    exposed-modules:
+        Template.HSML 
   
-  exposed-modules:
-      Template.HSML 
+      , Template.HSML.Internal.TH
+      , Template.HSML.Internal.Types
+      , Template.HSML.Internal.Types.Syntax
+      , Template.HSML.Internal.Parser
+      , Template.HSML.Internal.Parser.Syntax
  
-  other-modules:       
-      Template.HSML.Internal.TH
-    , Template.HSML.Internal.Types
-    , Template.HSML.Internal.Parser
-    , Template.HSML.Internal.Parser.Raw
+  else
+    exposed-modules:
+        Template.HSML 
+  
+    other-modules:       
+        Template.HSML.Internal.TH
+      , Template.HSML.Internal.Types
+      , Template.HSML.Internal.Types.Syntax
+      , Template.HSML.Internal.Parser
+      , Template.HSML.Internal.Parser.Syntax
 
   build-depends:
       base == 4.5.*
@@ -40,3 +56,32 @@ library
     , haskell-src-meta == 0.5.*
     , parsec           == 3.1.*
     , template-haskell == 2.7.*
+
+  extensions: CPP
+
+  ghc-options: -O2 -Wall
+ 
+  if flag(testing) 
+    cpp-options: -DTESTING
+
+
+test-suite template-hsml-tests
+    type:           exitcode-stdio-1.0
+    hs-source-dirs: tests
+    main-is:        Main.hs
+    
+    other-modules:
+        Parser.Syntax
+    
+
+    build-depends:
+        base == 4.5.*
+      , template-hsml
+      , parsec           == 3.1.*
+      , QuickCheck == 2.4.*
+      , test-framework == 0.6.*
+      , test-framework-quickcheck2 == 0.2.*
+
+    ghc-options: -Wall
+    cpp-options: -DTESTING
+
