@@ -24,7 +24,7 @@ homeTemplate :: [User] -> B.Markup
 homeTemplate users = renderTemplate Default
     { defaultTitle = "Home page"
     , defaultSectionMiddle = middle
-    , defaultSectionFooter = [m| <p>Created by Petr Pilař in 2012</p> |]
+    , defaultSectionFooter = [m| <p>Generated HSML</p> |]
     }
     where
       middle = [m|
