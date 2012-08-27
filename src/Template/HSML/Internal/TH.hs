@@ -6,12 +6,14 @@ module Template.HSML.Internal.TH
 #ifdef TESTING
 where
 #else
-( hsmlWith
-, hsml
+( -- * Quasi Quoters for Simplified HSML
+  hsml
 , m
 
 , hsmlStringWith
+, hsmlString
 , hsmlFileWith
+, hsmlFile
 
 , shsmlStringWith
 , shsmlString
@@ -29,102 +31,176 @@ import qualified Language.Haskell.Meta.Syntax.Translate as HE
 import qualified Text.Blaze          as B
 import qualified Text.Blaze.Internal as B
 --------------------------------------------------------------------------------
+import           Control.Applicative
+import           Control.Arrow
 import           Control.Monad
 --------------------------------------------------------------------------------
--- import           Data.Char
 import           Data.String
 import           Data.Monoid
--- import qualified Data.Generics as G
 --------------------------------------------------------------------------------
 import qualified Template.HSML.Internal.Types  as I
 import qualified Template.HSML.Internal.Parser as I
 --------------------------------------------------------------------------------
 
--- | QuasiQuoter for Simplified HSML expressions with the given
--- `Template.HSML.Internal.Types.Options`.
-hsmlWith :: I.Options -> TH.QuasiQuoter
-hsmlWith opts = TH.QuasiQuoter
-    { TH.quoteExp  = shsmlStringWith opts  
-    , TH.quoteDec  =  hsmlStringWith opts
-    , TH.quotePat  = const $ fail "You can not use the .HSML QuasiQuoter as a pattern."
-    , TH.quoteType = const $ fail "You can not use the .HSML QuasiQuoter as a type."
-    }
-{-# INLINE hsmlWith #-}
-
 -- | QuasiQuoter for Simplified HSML expressions with default options. See
--- `Template.HSML.Internal.Types.defaulSHSML` for details. 
+-- `Template.HSML.Internal.Types.defaulOptionsS` for details. 
+--
+-- Example:
+--
+-- > example :: Blaze.Text.Markup
+-- > example = [hsml|
+-- >   <h1>Page Title</h1>
+-- >   <p>
+-- >     Some interesting paragraph.
+-- >   </p>
+-- >   |]
 hsml :: TH.QuasiQuoter
 hsml = TH.QuasiQuoter 
     { TH.quoteExp  = shsmlString  
-    , TH.quoteDec  = const $ fail "You can not use the .HSML QuasiQuoter as a declaration."
-    , TH.quotePat  = const $ fail "You can not use the .HSML QuasiQuoter as a pattern."
-    , TH.quoteType = const $ fail "You can not use the .HSML QuasiQuoter as a type."
+    , TH.quoteDec  = const $ fail "You can not use the HSML QuasiQuoter as a declaration."
+    , TH.quotePat  = const $ fail "You can not use the HSML QuasiQuoter as a pattern."
+    , TH.quoteType = const $ fail "You can not use the HSML QuasiQuoter as a type."
     }
 {-# INLINE hsml #-}
 
 -- | The same as `Templahe.HSML.Internal.TH.hsml`.
+--
+-- Example:
+--
+-- > example :: Blaze.Text.Markup
+-- > example = [m|
+-- >   <h1>Page Title</h1>
+-- >   <p>
+-- >     Some interesting paragraph.
+-- >   </p>
+-- >   |]
 m :: TH.QuasiQuoter
 m = hsml
 {-# INLINE m #-}
 
 --------------------------------------------------------------------------------
--- | HSML
+-- HSML
 
--- | These functions parse the given file or string as a HSML document.
+-- These functions parse the given file or string as a HSML document.
 -- If possible, splicing these generates a record field type and its instance of
--- `Template.HSML.Internal.Types.HSMLTemplate`.
+-- `Template.HSML.Internal.Types.IsTemplate`.
 
-hsmlFileWith :: I.Options -> FilePath -> TH.Q [TH.Dec]
+-- | Parses HSML document from file with the given options. Results in
+-- record type and its `Template.HSML.Internal.Types.IsTemplate` instance.
+--
+-- Example:
+--
+-- > $(hsmlFileWith (defaultOptions "MyTemplate") "my_template.hsml")
+hsmlFileWith :: I.Options     -- ^ HSML options.
+             -> FilePath      -- ^ Name of input file.
+             -> TH.Q [TH.Dec] -- ^ Resulting type declaration and type-class instance.
 hsmlFileWith opts path = TH.runIO (readFile path) >>= hsmlStringWith opts
 {-# INLINE hsmlFileWith #-}
 
-hsmlFile :: String -> FilePath -> TH.Q [TH.Dec]
-hsmlFile = hsmlFileWith . I.defaultHSML
+-- | Parses HSML document from file with default options. Results in
+-- record type and its `Template.HSML.Internal.Types.IsTemplate` instance.
+--
+-- Example:
+--
+-- > $(hsmlFile "MyTemplate" "my_template.hsml")
+hsmlFile :: String        -- ^ Name of the record type (passed to `Template.HSML.Internal.Types.defaultOptions`).
+         -> FilePath      -- ^ Name of input file.
+         -> TH.Q [TH.Dec] -- ^ Resulting type declaration and type-class instance.
+hsmlFile = hsmlFileWith . I.defaultOptions
 {-# INLINE hsmlFile #-}
 
-hsmlStringWith :: I.Options -> String -> TH.Q [TH.Dec]
+-- | Parses HSML document string with the given options. Results in
+-- record type and its `Template.HSML.Internal.Types.IsTemplate` instance.
+--
+-- Example:
+--
+-- > $(hsmlStringWith (defaultOptions "MyTemplate") "<p>Paragraph</p>")
+hsmlStringWith :: I.Options     -- ^ HSML options.
+               -> String        -- ^ Input string.
+               -> TH.Q [TH.Dec] -- ^ Resulting type declaration and type-class instance.
 hsmlStringWith opts str = 
     case I.hsmlTemplate str of
         Right tpl -> makeDec opts tpl
         Left  err -> fail err
 {-# INLINE hsmlStringWith #-}
 
-hsmlString :: String -> String -> TH.Q [TH.Dec]
-hsmlString = hsmlStringWith . I.defaultHSML
+-- | Parses HSML document from string with default options. Results in
+-- record type and its `Template.HSML.Internal.Types.IsTemplate` instance.
+--
+-- Example:
+--
+-- > $(hsmlString "MyTemplate" "<p>Paragraph</p>")
+hsmlString :: String        -- ^ Name of the record type (passed to `Template.HSML.Internal.Types.defaultOptions`). 
+           -> String        -- ^ Input string.
+           -> TH.Q [TH.Dec] -- ^ Resulting type declaration and type-class instance.
+hsmlString = hsmlStringWith . I.defaultOptions
 {-# INLINE hsmlString #-}
 
 --------------------------------------------------------------------------------
--- | Simplified HSML (without arguments)
+-- Simplified HSML (without arguments)
 
--- | These functions parse the given file or string as a Simplified HSML document.
+-- These functions parse the given file or string as a Simplified HSML document.
 -- If possible, splicing these results in an expression of the type
 -- `Text.Blaze.Markup`.
 
-shsmlFileWith :: I.Options -> FilePath -> TH.ExpQ
+-- | Parses Simplified HSML document from file with the given options. Results in
+-- expression of type `Text.Blaze.Markup`.
+--
+-- Example:
+--
+-- > example :: Text.Blaze.Markup
+-- > example = $(shsmlFileWith defaultOptionsS "my_template.hsml")
+shsmlFileWith :: I.Options -- ^ HSML Options.
+              -> FilePath  -- ^ Name of input file.
+              -> TH.ExpQ   -- ^ Resulting expression.
 shsmlFileWith opts path = TH.runIO (readFile path) >>= shsmlStringWith opts
 {-# INLINE shsmlFileWith #-}
 
-shsmlFile :: FilePath -> TH.ExpQ
-shsmlFile = shsmlFileWith I.defaultSHSML
+-- | Parses Simplified HSML document from file with default options. Results in
+-- expression of type `Text.Blaze.Markup`.
+--
+-- Example:
+--
+-- > example :: Text.Blaze.Markup
+-- > example = $(shsmlFile "my_template.hsml")
+shsmlFile :: FilePath -- ^ Name of input file.
+          -> TH.ExpQ  -- ^ Resulting expression.
+shsmlFile = shsmlFileWith I.defaultOptionsS
 {-# INLINE shsmlFile #-}
 
-shsmlStringWith :: I.Options -> String -> TH.ExpQ
+-- | Parses Simplified HSML document from string with the given options. Results in
+-- expression of type `Text.Blaze.Markup`.
+--
+-- Example:
+--
+-- > example :: Text.Blaze.Markup
+-- > example = $(shsmlStringWith defaultOptionsS "<p>Paragraph</p>")
+shsmlStringWith :: I.Options -- ^ HSML options
+                -> String    -- ^ Input string.
+                -> TH.ExpQ   -- ^ Resulting expression.
 shsmlStringWith opts str = 
     case I.shsmlTemplate str of
         Right I.Template{..} -> makeExp opts templateDecs templateSections 
         Left  err            -> fail err
 {-# INLINE shsmlStringWith #-}
 
-shsmlString :: String -> TH.ExpQ
-shsmlString = shsmlStringWith I.defaultSHSML
+-- | Parses Simplified HSML document from string with default options. Results in
+-- expression of type `Text.Blaze.Markup`.
+--
+-- Example:
+--
+-- > example :: Text.Blaze.Markup
+-- > example = $(shsmlString "<p>Paragraph</p>")
+shsmlString :: String  -- ^ Input string.
+            -> TH.ExpQ -- ^ Resulting expression.
+shsmlString = shsmlStringWith I.defaultOptionsS
 {-# INLINE shsmlString #-}
 
 --------------------------------------------------------------------------------
 
--- | This function take options @ template and generates the record type and
--- instance of .HSMLTemplate for that record type.
+-- | Generates a record type and its instance of `IsTemplate`.
 makeDec :: I.Options -> I.Template -> TH.Q [TH.Dec]
-makeDec opts@(I.Options _ tname fname) (I.Template args decs sections) = do
+makeDec opts@(I.Options _ _ tname fname) (I.Template args decs sections) = do
     (vars, fields) <- makeVarsAndFields
     tdata <- makeData     vars fields
     tinst <- makeInstance vars
@@ -135,7 +211,7 @@ makeDec opts@(I.Options _ tname fname) (I.Template args decs sections) = do
 
       -- | This function generates the type variable names and fields.
       makeVarsAndFields :: TH.Q ([TH.Name], [TH.VarStrictType])
-      makeVarsAndFields = foldM go ([], []) args
+      makeVarsAndFields = (reverse *** reverse) <$> foldM go ([], []) args
           where
             go (vs, fs) (I.Arg an (Just at)) =
               return (vs, (HE.toName $ fname an, TH.NotStrict, HE.toType at) : fs)
@@ -143,15 +219,15 @@ makeDec opts@(I.Options _ tname fname) (I.Template args decs sections) = do
               v <- TH.newName "a"
               return (v : vs, (HE.toName $ fname an, TH.NotStrict, TH.VarT v) : fs)
 
-      -- | This function generates the instance in .HSMLTemplate.
+      -- | This function generates the instance of IsTemplate.
       makeInstance :: [TH.Name] -> TH.DecQ 
       makeInstance vars =
-          -- instance .HSMLTemplate (<dataName> <vars>) where
+          -- instance .IsTemplate (<dataName> <vars>) where
           --     renderTemplate (<dataName>{ <binds> }) = 
           --        <expression generated by makeExp>
           TH.instanceD
               (return [])
-              (TH.conT ''I.HSMLTemplate `TH.appT` contyp)
+              (TH.conT ''I.IsTemplate `TH.appT` contyp)
               [TH.funD 'I.renderTemplate [clause]]
           where
             -- This is the data type applied to all the type variables.
@@ -170,6 +246,7 @@ makeDec opts@(I.Options _ tname fname) (I.Template args decs sections) = do
           -- data <dataName> <vars> = <dataName> { <fields> }
           TH.DataD [] dataName (map TH.PlainTV vars) [TH.RecC dataName fields] []
 
+-- | Generates an expression of the type `Text.Blaze.Markup`
 makeExp :: I.Options -> [I.Dec] -> [I.Section] -> TH.ExpQ
 makeExp opts decs sections =
     TH.letE (map (return . HE.toDec) decs) $ sectionsToExp opts sections
@@ -184,37 +261,40 @@ sectionToExp :: I.Options -> I.Section -> TH.ExpQ
 sectionToExp opts@I.Options{..} section =
   case section of
     (I.ElementNode name atts sections decs) ->
-      [e| applyAttributes $(TH.listE $ map attributeToExp atts) $
+      [e| applyAttributes $(TH.listE $ map (attributeToExp opts) atts) $
             B.Parent (fromString name)
                      (fromString $ "<" <> name)
                      (fromString $ "</" <> name <> ">")
                      $(makeExp opts decs sections) |]
     (I.ElementLeaf name atts) -> 
-      [e| applyAttributes $(TH.listE $ map attributeToExp atts) $
+      [e| applyAttributes $(TH.listE $ map (attributeToExp opts) atts) $
             B.Leaf (fromString name)
                    (fromString $ "<" <> name)
                    (fromString ">") |]
     (I.Text    str) -> [e| B.string str |]
     (I.TextRaw str) -> [e| B.preEscapedString str |]
     (I.Expression e) ->
-      if optSectionsToMarkup
+      if optExpToMarkup
          then [e| B.toMarkup $(toExp e) |]
          else toExp e
 
 applyAttributes :: [B.Attribute] -> B.MarkupM a -> B.MarkupM a
 applyAttributes attributes markup = foldl (B.!) markup attributes
 
-attributeToExp :: I.Attribute -> TH.ExpQ
-attributeToExp (I.Attribute aname avalue) =
+attributeToExp :: I.Options -> I.Attribute -> TH.ExpQ
+attributeToExp I.Options{..} (I.Attribute aname avalue) =
     [e| B.attribute (fromString $(attributeNameToExp aname))
                     (fromString (" " <> $(attributeNameToExp aname) <> "=\""))
-                    (fromString $(attributeValueToExp avalue)) |]
+                    $(attributeValueToExp avalue) |]
     where
-      attributeNameToExp (I.AttributeNameExp e) = toExp e
       attributeNameToExp (I.AttributeNameText str) = [e| str |]
+      attributeNameToExp (I.AttributeNameExp e) = toExp e
 
-      attributeValueToExp (I.AttributeValueExp e) = toExp e
-      attributeValueToExp (I.AttributeValueText str) = [e| str |]     
+      attributeValueToExp (I.AttributeValueText str) = [e| B.toValue str |]     
+      attributeValueToExp (I.AttributeValueExp e) =
+        if optExpToValue
+           then [e| B.toValue $(toExp e) |]
+           else toExp e 
 
 toExp :: HE.ToExp a => a -> TH.ExpQ
 toExp = return . HE.toExp

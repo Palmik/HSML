@@ -12,14 +12,13 @@ import qualified Text.Blaze.Html5 as B
 import           Template.HSML
 ------------------------------------------------------------------------------
 
-
 data User = User
     { userID :: Int
     , userName :: String
     , userAge :: Int
     } 
 
-$(hsmlFileWith (defaultHSML "Default") "default_layout.hsml")
+$(hsmlFileWith (defaultOptions "Default") "default_layout.hsml")
 
 homeTemplate :: [User] -> B.Markup
 homeTemplate users = renderTemplate Default
