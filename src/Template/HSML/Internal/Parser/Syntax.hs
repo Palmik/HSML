@@ -102,11 +102,19 @@ tagName = P.try $ P.many1 P.alphaNum
 --------------------------------------------------------------------------------
 -- | Attribute
 attribute :: P.Parser I.RAttribute
-attribute = do
-    n <- attributeName
-    spaces >> P.char '=' >> spaces
-    v <- attributeValue
-    return $ I.Attribute n v
+attribute = P.try $
+    P.try attributeNormal <|>
+          attributeExp
+    where
+      attributeNormal :: P.Parser I.RAttribute
+      attributeNormal = do
+        n <- attributeName
+        spaces >> P.char '=' >> spaces
+        v <- attributeValue
+        return $ I.Attribute n v
+      
+      attributeExp :: P.Parser I.RAttribute
+      attributeExp = I.AttributeExp <$> haskellBody
 
 attributeValue :: P.Parser I.RAttributeValue
 attributeValue = P.try $

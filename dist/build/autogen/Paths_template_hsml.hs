@@ -12,12 +12,12 @@ catchIO = Exception.catch
 
 
 version :: Version
-version = Version {versionBranch = [0,2,0,1], versionTags = []}
+version = Version {versionBranch = [0,2,0,2], versionTags = []}
 bindir, libdir, datadir, libexecdir :: FilePath
 
 bindir     = "/home/palmik/.cabal/bin"
-libdir     = "/home/palmik/.cabal/lib/template-hsml-0.2.0.1/ghc-7.4.2"
-datadir    = "/home/palmik/.cabal/share/template-hsml-0.2.0.1"
+libdir     = "/home/palmik/.cabal/lib/template-hsml-0.2.0.2/ghc-7.4.2"
+datadir    = "/home/palmik/.cabal/share/template-hsml-0.2.0.2"
 libexecdir = "/home/palmik/.cabal/libexec"
 
 getBinDir, getLibDir, getDataDir, getLibexecDir :: IO FilePath

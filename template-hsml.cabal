@@ -1,5 +1,5 @@
 name:                template-hsml
-version:             0.2.0.2
+version:             0.2.0.3
 synopsis:            Haskell's Simple Markup Language
 description:         HSML syntax is very similar to that of XML, but there are less rules.
                      The main advantage over plain XML or HTML is that it allows you to embed Haskell declarations

@@ -15,7 +15,9 @@
 -- > element_leaf = "<" element_name { attribute } "/>" ;
 -- > haskell = "{h|" expression | declaration "|}" ;
 -- >
--- > attribute = attribute_name "=" attribute_value ;
+-- > attribute = attribute_exp | attribute_normal
+-- > attribute_exp = "{h|" expression "|}"
+-- > attribute_normal = attribute_name "=" attribute_value ;
 -- > attribute_name = ? classic attribute name ? | "{h|" expression "|}" ;
 -- > attribute_value = ? classic attribute value ? | "{h| expression "|}" ;
 -- >
@@ -91,7 +93,7 @@
 -- >   </body>
 -- > </html>
 --
--- Result of @renderMarkup . homeTemplate [User 1 "Jon Doe" 16, User
+-- Result of @renderMarkup $ homeTemplate [User 1 "Jon Doe" 16, User
 -- 2 "Jane Roe" 17]@:
 --
 -- > <!DOCTYPE HTML>

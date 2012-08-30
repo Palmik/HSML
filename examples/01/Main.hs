@@ -3,14 +3,25 @@
 {-# LANGUAGE RecordWildCards #-}
 
 ------------------------------------------------------------------------------
-import           Data.Monoid ((<>))
+import           Data.Monoid 
 ------------------------------------------------------------------------------
 import           Control.Monad
 ------------------------------------------------------------------------------
-import qualified Text.Blaze.Html5 as B
+import qualified Text.Blaze.Html5            as B
+import qualified Text.Blaze.Html5.Attributes as B
 ------------------------------------------------------------------------------
 import           Template.HSML
 ------------------------------------------------------------------------------
+
+opt :: Monoid a => Bool -> a -> a
+opt c m = if c then m else mempty
+
+test :: String -> String -> Bool -> B.Markup
+test name value condition = [m|
+  <div class="test" href={h|value|} {h|name|}={h|value|} {h| opt condition $ B.selected $ B.toValue "selected" |}>
+    test
+  </div>
+  |]
 
 data User = User
     { userID :: Int

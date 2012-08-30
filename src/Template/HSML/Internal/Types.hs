@@ -143,6 +143,7 @@ data Section = ElementNode
              | Expression  Exp
 
 data PAttribute exp = Attribute (PAttributeName exp) (PAttributeValue exp)
+                    | AttributeExp exp
 
 data PAttributeName exp = AttributeNameText String 
                         | AttributeNameExp  exp

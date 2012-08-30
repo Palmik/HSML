@@ -282,6 +282,7 @@ applyAttributes :: [B.Attribute] -> B.MarkupM a -> B.MarkupM a
 applyAttributes attributes markup = foldl (B.!) markup attributes
 
 attributeToExp :: I.Options -> I.Attribute -> TH.ExpQ
+attributeToExp I.Options{..} (I.AttributeExp e) = toExp e
 attributeToExp I.Options{..} (I.Attribute aname avalue) =
     [e| B.attribute (fromString $(attributeNameToExp aname))
                     (fromString (" " <> $(attributeNameToExp aname) <> "=\""))

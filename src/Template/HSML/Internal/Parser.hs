@@ -102,6 +102,7 @@ transformChunk (ds, ss) (IS.Haskell rhs) =
                 ]
 
 transformAttribute :: I.RAttribute -> P.Parser I.Attribute
+transformAttribute (I.AttributeExp rexp) = I.AttributeExp <$> transformExp rexp 
 transformAttribute (I.Attribute rname rvalue) =
     I.Attribute <$> transformName rname <*> transformValue rvalue 
     where
