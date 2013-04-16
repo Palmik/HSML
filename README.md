@@ -5,3 +5,4 @@ See:
 
   * [Documentation](http://hackage.haskell.org/package/template-hsml)
   * [Blog post](http://palmik.net/posts/2012-08-23-introducing-hsml.html)
+  * [Examples](https://github.com/Palmik/HSML/tree/master/examples)
