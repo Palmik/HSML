@@ -3,5 +3,5 @@ On top of that it also allows you to embed Haskell expressions and declarations 
 
 See:
 
-  * [Documentation](http://hackage.haskell.org/package/template-hsml).
-  * [Blog post](http://palmik.net/posts/2012-08-23-introducing-hsml.html).
+  * [Documentation](http://hackage.haskell.org/package/template-hsml)
+  * [Blog post](http://palmik.net/posts/2012-08-23-introducing-hsml.html)
